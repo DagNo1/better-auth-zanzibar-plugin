@@ -1,0 +1,59 @@
+{
+  "name": "better-auth-zanzibar-plugin",
+  "version": "0.1.0",
+  "description": "Zanzibar-style authorization plugin for Better Auth (server and client).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/zanzibar/index.js",
+  "module": "./dist/zanzibar/index.js",
+  "types": "./dist/zanzibar/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/zanzibar/index.d.ts",
+      "import": "./dist/zanzibar/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "prepare": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "zanzibar",
+    "authorization",
+    "rbac",
+    "abac",
+    "better-auth",
+    "plugin"
+  ],
+  "author": "DagNo1 <dagimcodes@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DagNo1/better-auth-zanzibar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DagNo1/better-auth-zanzibar/issues"
+  },
+  "homepage": "https://github.com/DagNo1/better-auth-zanzibar#readme",
+  "peerDependencies": {
+    "better-auth": "*",
+    "node-cache": "^5.1.2",
+    "zod": "^4.1.5"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
