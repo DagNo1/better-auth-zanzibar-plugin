@@ -31,9 +31,10 @@ export let policyEngineInstance: PolicyEngine | null = null;
  * import { initializePolicyEngine } from './policy-engine';
  * import { createAccessControl } from './builder';
  *
+ * // Define your authorization policies
  * const accessControl = createAccessControl({
  *   documents: ['read', 'write', 'delete'] as const,
- * }).roleConditions({...});
+ * }).resourceRoles({...}).roleConditions({...});
  *
  * // Initialize with caching enabled (default)
  * const engine = initializePolicyEngine(accessControl);
@@ -46,7 +47,10 @@ export let policyEngineInstance: PolicyEngine | null = null;
  * @param cachingEnabled - Whether to enable response caching (default: true)
  * @returns The initialized PolicyEngine instance
  */
-export function initializePolicyEngine(policies: Policies, cachingEnabled: boolean = true): PolicyEngine {
+export function initializePolicyEngine(
+  policies: Policies,
+  cachingEnabled: boolean = true
+): PolicyEngine {
   policyEngineInstance = new PolicyEngine(policies, cachingEnabled);
 
   return policyEngineInstance;

@@ -46,31 +46,21 @@ export const zanzibar = ZanzibarPlugin(policies);
 ```ts
 import { ZanzibarClientPlugin } from "better-auth-zanzibar-plugin";
 
-const client = betterAuthClient({ plugins: [ZanzibarClientPlugin] });
-const actions = client.useZanzibarPlugin();
+const authClient = betterAuthClient({ plugins: [ZanzibarClientPlugin] });
 
-const canRead = await actions.check("user-1", "read", "documents", "doc-1");
-const isEditor = await actions.checkRole(
+// Use the plugin via the zanzibar namespace
+const canRead = await authClient.zanzibar.check(
+  "user-1",
+  "read",
+  "documents",
+  "doc-1"
+);
+const isEditor = await authClient.zanzibar.checkRole(
   "documents",
   "editor",
   "user-1",
   "doc-1"
 );
-```
-
-## Environment
-
-- `ZANZIBAR_CACHING_ENABLED=true|false` controls in-memory cache in `PolicyEngine` (default true)
-
-## Types
-
-- `ResourcesShape`, `RolesShape`, `ConditionsShape`
-- `Policies`, `ResourceRole`, `RelationshipFunction`
-
-## Build
-
-```bash
-npm run build
 ```
 
 ## License

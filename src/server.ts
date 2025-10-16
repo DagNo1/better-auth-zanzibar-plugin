@@ -153,22 +153,59 @@ export const ZanzibarPlugin = (
           }
         }
       ),
+      /**
+       * POST endpoint for checking whether the authenticated user has a specific role
+       * for a given resource instance.
+       *
+       * Request body schema:
+       * - `resourceType`: string - The type of resource (e.g., 'documents', 'projects')
+       * - `roleName`: string - The name of the role to check (e.g., 'editor', 'viewer')
+       * - `resourceId`: string - The specific resource instance ID
+       *
+       * Response format:
+       * ```typescript
+       * { allowed: boolean, message: string }
+       * ```
+       */
+      checkRole: createAuthEndpoint(
+        "/zanzibar/check-role",
+        {
+          method: "POST",
+          use: [sessionMiddleware],
+          body: z.object({
+            resourceType: z.string(),
+            roleName: z.string(),
+            resourceId: z.string(),
+          }),
+        },
+        async (ctx) => {
+          try {
+            const body = await ctx.request?.json();
+            const { resourceType, roleName, resourceId } = body;
+            const userId = ctx.context.session?.user.id;
+
+            if (!policyEngineInstance) {
+              return ctx.json(
+                { error: "Zanzibar not initialized with policies" },
+                { status: 500 }
+              );
+            }
+
+            const { allowed, message } = await policyEngineInstance.checkRole(
+              resourceType,
+              roleName,
+              userId,
+              resourceId
+            );
+            return ctx.json({ allowed, message });
+          } catch (error) {
+            return ctx.json(
+              { error: "Internal server error" },
+              { status: 500 }
+            );
+          }
+        }
+      ),
     },
   } satisfies BetterAuthPlugin;
 };
-
-/**
- * Re-exports the PolicyEngine type for external use.
- *
- * This allows other modules to import and use the PolicyEngine class
- * for direct authorization checking without going through HTTP endpoints.
- *
- * @example
- * ```typescript
- * import type { PolicyEngine } from './zanzibar/server';
- *
- * // Use the type for creating custom policy engines
- * const engine: PolicyEngine = initializePolicyEngine(policies);
- * ```
- */
-export type { PolicyEngine } from "./policy-engine";

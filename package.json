@@ -34,12 +34,12 @@
   "author": "DagNo1 <dagimcodes@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DagNo1/better-auth-zanzibar.git"
+    "url": "git+https://github.com/DagNo1/better-auth-zanzibar-plugin.git"
   },
   "bugs": {
-    "url": "https://github.com/DagNo1/better-auth-zanzibar/issues"
+    "url": "https://github.com/DagNo1/better-auth-zanzibar-plugin/issues"
   },
-  "homepage": "https://github.com/DagNo1/better-auth-zanzibar#readme",
+  "homepage": "https://github.com/DagNo1/better-auth-zanzibar-plugin#readme",
   "peerDependencies": {
     "better-auth": "*",
     "node-cache": "^5.1.2",
