@@ -1,16 +1,16 @@
 {
   "name": "better-auth-zanzibar-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zanzibar-style authorization plugin for Better Auth (server and client).",
   "license": "MIT",
   "type": "module",
-  "main": "./dist/zanzibar/index.js",
-  "module": "./dist/zanzibar/index.js",
-  "types": "./dist/zanzibar/index.d.ts",
+  "main": "./dist/src/index.js",
+  "module": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/zanzibar/index.d.ts",
-      "import": "./dist/zanzibar/index.js"
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
     }
   },
   "files": [
