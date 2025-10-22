@@ -105,7 +105,7 @@ export const ZanzibarPlugin = (
        * }
        * ```
        *
-       * Error responses:
+       * Error responses (always returns { allowed: false, message: string }):
        * - `500`: "Zanzibar not initialized with policies" - Policy engine not ready
        * - `500`: "Internal server error" - Unexpected server error
        */
@@ -128,7 +128,10 @@ export const ZanzibarPlugin = (
 
             if (!policyEngineInstance) {
               return ctx.json(
-                { error: "Zanzibar not initialized with policies" },
+                {
+                  allowed: false,
+                  message: "Zanzibar not initialized with policies",
+                },
                 { status: 500 }
               );
             }
@@ -145,7 +148,7 @@ export const ZanzibarPlugin = (
           } catch (error) {
             console.error("Zanzibar check error:", error);
             return ctx.json(
-              { error: "Internal server error" },
+              { allowed: false, message: "Internal server error" },
               { status: 500 }
             );
           }
@@ -164,6 +167,10 @@ export const ZanzibarPlugin = (
        * ```typescript
        * { allowed: boolean, message: string }
        * ```
+       *
+       * Error responses (always returns { allowed: false, message: string }):
+       * - `500`: "Zanzibar not initialized with policies" - Policy engine not ready
+       * - `500`: "Internal server error" - Unexpected server error
        */
       checkRole: createAuthEndpoint(
         "/zanzibar/check-role",
@@ -178,13 +185,15 @@ export const ZanzibarPlugin = (
         },
         async (ctx) => {
           try {
-            // The body is already parsed and validated by Better Auth
             const { resourceType, roleName, resourceId } = ctx.body;
             const userId = ctx.context.session?.user.id;
 
             if (!policyEngineInstance) {
               return ctx.json(
-                { error: "Zanzibar not initialized with policies" },
+                {
+                  allowed: false,
+                  message: "Zanzibar not initialized with policies",
+                },
                 { status: 500 }
               );
             }
@@ -199,7 +208,7 @@ export const ZanzibarPlugin = (
           } catch (error) {
             console.error("Zanzibar checkRole error:", error);
             return ctx.json(
-              { error: "Internal server error" },
+              { allowed: false, message: "Internal server error" },
               { status: 500 }
             );
           }
