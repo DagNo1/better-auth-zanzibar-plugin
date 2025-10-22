@@ -122,8 +122,8 @@ export const ZanzibarPlugin = (
         },
         async (ctx) => {
           try {
-            const body = await ctx.request?.json();
-            const { action, resourceType, resourceId } = body;
+            // The body is already parsed and validated by Better Auth
+            const { action, resourceType, resourceId } = ctx.body;
             const userId = ctx.context.session?.user.id;
 
             if (!policyEngineInstance) {
@@ -140,12 +140,10 @@ export const ZanzibarPlugin = (
               resourceId
             );
             return ctx.json({
-              allowed,
-              message: allowed
-                ? `Action '${action}' allowed on ${resourceType}`
-                : `Action '${action}' denied on ${resourceType}`,
+              ...allowed,
             });
           } catch (error) {
+            console.error("Zanzibar check error:", error);
             return ctx.json(
               { error: "Internal server error" },
               { status: 500 }
@@ -180,8 +178,8 @@ export const ZanzibarPlugin = (
         },
         async (ctx) => {
           try {
-            const body = await ctx.request?.json();
-            const { resourceType, roleName, resourceId } = body;
+            // The body is already parsed and validated by Better Auth
+            const { resourceType, roleName, resourceId } = ctx.body;
             const userId = ctx.context.session?.user.id;
 
             if (!policyEngineInstance) {
@@ -191,14 +189,15 @@ export const ZanzibarPlugin = (
               );
             }
 
-            const { allowed, message } = await policyEngineInstance.checkRole(
+            const allowed = await policyEngineInstance.checkRole(
               resourceType,
               roleName,
               userId,
               resourceId
             );
-            return ctx.json({ allowed, message });
+            return ctx.json({ ...allowed });
           } catch (error) {
+            console.error("Zanzibar checkRole error:", error);
             return ctx.json(
               { error: "Internal server error" },
               { status: 500 }

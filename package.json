@@ -1,6 +1,6 @@
 {
   "name": "better-auth-zanzibar-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Zanzibar-style authorization plugin for Better Auth (server and client).",
   "license": "MIT",
   "type": "module",
