@@ -246,7 +246,7 @@ export class PolicyEngine {
   }
 
   /**
-   * Checks multiple named permission checks, each targeting potentially different resources.
+   * Checks multiple permission checks, each targeting potentially different resources.
    *
    * This method allows you to perform multiple permission checks with custom names,
    * where each check can target different resource types, actions, and resource IDs.
@@ -254,7 +254,7 @@ export class PolicyEngine {
    * @example
    * ```typescript
    * // Check various permissions with custom names
-   * const result = await engine.hasNamedPermissions(userId, {
+   * const result = await engine.hasPermissions(userId, {
    *   projectEdit: {
    *     resourceType: 'project',
    *     actions: ['update', 'delete'],
@@ -274,7 +274,7 @@ export class PolicyEngine {
    * @param checks - Object with custom keys mapping to permission check definitions
    * @returns Promise resolving to an object with results keyed by the custom names
    */
-  async hasNamedPermissions(
+  async hasPermissions(
     userId: string,
     checks: Record<
       string,

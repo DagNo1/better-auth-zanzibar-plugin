@@ -58,7 +58,7 @@ export const ZanzibarPlugin = (
        * POST endpoint for checking a SINGLE permission.
        *
        * Use this endpoint to check if a user has permission to perform ONE specific action
-       * on a resource. For checking multiple permissions at once, use the `hasNamedPermissions` endpoint.
+       * on a resource. For checking multiple permissions at once, use the `hasPermissions` endpoint.
        *
        * @example
        * ```typescript
@@ -91,9 +91,7 @@ export const ZanzibarPlugin = (
        * }
        * ```
        *
-       * Error responses (always returns { allowed: false, message: string }):
-       * - `500`: "Zanzibar not initialized with policies" - Policy engine not ready
-       * - `500`: "Internal server error" - Unexpected server error
+       * @throws INTERNAL_SERVER_ERROR if Zanzibar is not initialized with policies
        */
       hasPermission: createAuthEndpoint(
         "/zanzibar/has-permission",
@@ -107,44 +105,32 @@ export const ZanzibarPlugin = (
           }),
         },
         async (ctx) => {
-          try {
-            // The body is already parsed and validated by Better Auth
-            const { action, resourceType, resourceId } = ctx.body;
-            const userId = ctx.context.session?.user.id;
+          // The body is already parsed and validated by Better Auth
+          const { action, resourceType, resourceId } = ctx.body;
+          const userId = ctx.context.session?.user.id;
 
-            if (!policyEngineInstance) {
-              return ctx.json(
-                {
-                  allowed: false,
-                  message: "Zanzibar not initialized with policies",
-                },
-                { status: 500 }
-              );
-            }
-
-            const allowed = await policyEngineInstance.hasPermission(
-              userId,
-              action,
-              resourceType,
-              resourceId
-            );
-            return ctx.json({
-              ...allowed,
+          if (!policyEngineInstance) {
+            throw ctx.error("INTERNAL_SERVER_ERROR", {
+              message: "Zanzibar not initialized with policies",
             });
-          } catch (error) {
-            console.error("Zanzibar hasPermission error:", error);
-            return ctx.json(
-              { allowed: false, message: "Internal server error" },
-              { status: 500 }
-            );
           }
+
+          const allowed = await policyEngineInstance.hasPermission(
+            userId,
+            action,
+            resourceType,
+            resourceId
+          );
+          return ctx.json({
+            ...allowed,
+          });
         }
       ),
       /**
        * POST endpoint for checking a SINGLE role.
        *
        * Use this endpoint to check if a user has ONE specific role on a resource.
-       * For checking multiple roles or permissions, use the `hasNamedPermissions` endpoint.
+       * For checking multiple roles or permissions, use the `hasPermissions` endpoint.
        *
        * Request body schema:
        * - `resourceType`: string - The type of resource (e.g., 'documents', 'projects')
@@ -156,9 +142,7 @@ export const ZanzibarPlugin = (
        * { allowed: boolean, message: string }
        * ```
        *
-       * Error responses (always returns { allowed: false, message: string }):
-       * - `500`: "Zanzibar not initialized with policies" - Policy engine not ready
-       * - `500`: "Internal server error" - Unexpected server error
+       * @throws INTERNAL_SERVER_ERROR if Zanzibar is not initialized with policies
        */
       hasRole: createAuthEndpoint(
         "/zanzibar/has-role",
@@ -172,38 +156,26 @@ export const ZanzibarPlugin = (
           }),
         },
         async (ctx) => {
-          try {
-            const { resourceType, roleName, resourceId } = ctx.body;
-            const userId = ctx.context.session?.user.id;
+          const { resourceType, roleName, resourceId } = ctx.body;
+          const userId = ctx.context.session?.user.id;
 
-            if (!policyEngineInstance) {
-              return ctx.json(
-                {
-                  allowed: false,
-                  message: "Zanzibar not initialized with policies",
-                },
-                { status: 500 }
-              );
-            }
-
-            const allowed = await policyEngineInstance.hasRole(
-              resourceType,
-              roleName,
-              userId,
-              resourceId
-            );
-            return ctx.json({ ...allowed });
-          } catch (error) {
-            console.error("Zanzibar hasRole error:", error);
-            return ctx.json(
-              { allowed: false, message: "Internal server error" },
-              { status: 500 }
-            );
+          if (!policyEngineInstance) {
+            throw ctx.error("INTERNAL_SERVER_ERROR", {
+              message: "Zanzibar not initialized with policies",
+            });
           }
+
+          const allowed = await policyEngineInstance.hasRole(
+            resourceType,
+            roleName,
+            userId,
+            resourceId
+          );
+          return ctx.json({ ...allowed });
         }
       ),
       /**
-       * POST endpoint for checking NAMED permissions across multiple resources.
+       * POST endpoint for checking permissions across multiple resources.
        *
        * This endpoint allows you to perform multiple permission checks with custom names,
        * where each check can target different resource types, actions, and resource IDs.
@@ -212,7 +184,7 @@ export const ZanzibarPlugin = (
        * @example
        * ```typescript
        * // Check various permissions with custom names
-       * const response = await fetch('/api/auth/zanzibar/has-named-permissions', {
+       * const response = await fetch('/api/auth/zanzibar/has-permissions', {
        *   method: 'POST',
        *   headers: { 'Content-Type': 'application/json' },
        *   body: JSON.stringify({
@@ -253,9 +225,11 @@ export const ZanzibarPlugin = (
        *   results?: Record<string, boolean>  // Only present for multi-action checks
        * }>
        * ```
+       *
+       * @throws INTERNAL_SERVER_ERROR if Zanzibar is not initialized with policies
        */
-      hasNamedPermissions: createAuthEndpoint(
-        "/zanzibar/has-named-permissions",
+      hasPermissions: createAuthEndpoint(
+        "/zanzibar/has-permissions",
         {
           method: "POST",
           use: [sessionMiddleware],
@@ -272,39 +246,28 @@ export const ZanzibarPlugin = (
           }),
         },
         async (ctx) => {
-          try {
-            const { checks } = ctx.body;
-            const userId = ctx.context.session?.user.id;
+          const { checks } = ctx.body;
+          const userId = ctx.context.session?.user.id;
 
-            if (!policyEngineInstance) {
-              return ctx.json(
-                {
-                  error: "Zanzibar not initialized with policies",
-                },
-                { status: 500 }
-              );
-            }
-
-            const result = await policyEngineInstance.hasNamedPermissions(
-              userId,
-              checks as Record<
-                string,
-                {
-                  resourceType: string;
-                  action?: string;
-                  actions?: string[];
-                  resourceId: string;
-                }
-              >
-            );
-            return ctx.json(result);
-          } catch (error) {
-            console.error("Zanzibar hasNamedPermissions error:", error);
-            return ctx.json(
-              { error: "Internal server error" },
-              { status: 500 }
-            );
+          if (!policyEngineInstance) {
+            throw ctx.error("INTERNAL_SERVER_ERROR", {
+              message: "Zanzibar not initialized with policies",
+            });
           }
+
+          const result = await policyEngineInstance.hasPermissions(
+            userId,
+            checks as Record<
+              string,
+              {
+                resourceType: string;
+                action?: string;
+                actions?: string[];
+                resourceId: string;
+              }
+            >
+          );
+          return ctx.json(result);
         }
       ),
     },

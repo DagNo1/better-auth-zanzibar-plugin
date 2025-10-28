@@ -31,7 +31,7 @@ import type { ZanzibarPlugin } from "./server";
  * );
  *
  * // Check multiple permissions with custom names
- * const result = await authClient.zanzibar.hasNamedPermissions(
+ * const result = await authClient.zanzibar.hasPermissions(
  *   "user-1",
  *   {
  *     projectPermissions: {

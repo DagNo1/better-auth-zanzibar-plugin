@@ -76,7 +76,7 @@ export const hasPermission = async (
 };
 
 /**
- * Checks multiple named permission checks, each targeting potentially different resources.
+ * Checks multiple permission checks, each targeting potentially different resources.
  *
  * This function allows you to perform multiple permission checks with custom names,
  * where each check can target different resource types, actions, and resource IDs.
@@ -84,7 +84,7 @@ export const hasPermission = async (
  * @example
  * ```typescript
  * // Check various permissions with custom names
- * const result = await hasNamedPermissions(userId, {
+ * const result = await hasPermissions(userId, {
  *   project: {
  *     resourceType: 'project',
  *     actions: ['create', 'update', 'delete'],
@@ -113,7 +113,7 @@ export const hasPermission = async (
  * @returns Promise resolving to an object with results keyed by the custom names
  * @throws Error if the policy engine is not initialized
  */
-export const hasNamedPermissions = async (
+export const hasPermissions = async (
   userId: string,
   checks: Record<
     string,
@@ -135,5 +135,5 @@ export const hasNamedPermissions = async (
   >
 > => {
   if (!policyEngineInstance) throw new Error("Policy engine not initialized");
-  return await policyEngineInstance.hasNamedPermissions(userId, checks);
+  return await policyEngineInstance.hasPermissions(userId, checks);
 };

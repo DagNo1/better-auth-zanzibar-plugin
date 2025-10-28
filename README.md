@@ -113,8 +113,8 @@ ReBAC treats resources as a **graph** where:
 
 ```
 Project (owner)
-  └─> Folder (inherits viewer from project)
-       └─> File (inherits viewer from folder)
+  └─> Folder (inherits owner from project)
+       └─> File (inherits owner from folder)
 ```
 
 ---
@@ -336,8 +336,8 @@ const canDelete = await authClient.zanzibar.hasPermission(
 );
 // Returns: boolean
 
-// Check multiple named permissions
-const namedPerms = await authClient.zanzibar.hasNamedPermissions(userId, {
+// Check multiple permissions
+const namedPerms = await authClient.zanzibar.hasPermissions(userId, {
   project: {
     resourceType: "project",
     actions: ["create", "update", "delete"],
@@ -387,8 +387,8 @@ const permResult = await auth.api.hasPermission({
 console.log(permResult.allowed); // boolean
 console.log(permResult.message); // descriptive message
 
-// Named permission checks
-const namedResult = await auth.api.hasNamedPermissions({
+// Multiple permission checks
+const namedResult = await auth.api.hasPermissions({
   headers: await headers(),
   body: {
     checks: {
@@ -419,15 +419,15 @@ const namedResult = await auth.api.hasNamedPermissions({
 | --------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
 | `hasRole(resourceType, roleName, userId, resourceId)`     | Check if user has a specific role            | `Promise<boolean>`                               |
 | `hasPermission(userId, action, resourceType, resourceId)` | Check if user has a specific permission      | `Promise<{ allowed: boolean, message: string }>` |
-| `hasNamedPermissions(userId, checks)`                     | Check multiple permissions with custom names | `Promise<Record<string, CheckResult>>`           |
+| `hasPermissions(userId, checks)`                          | Check multiple permissions with custom names | `Promise<Record<string, CheckResult>>`           |
 
 ### Server Endpoints
 
-| Endpoint                          | Method | Description                      |
-| --------------------------------- | ------ | -------------------------------- |
-| `/zanzibar/has-role`              | POST   | Check single role                |
-| `/zanzibar/has-permission`        | POST   | Check single permission          |
-| `/zanzibar/has-named-permissions` | POST   | Check multiple named permissions |
+| Endpoint                    | Method | Description                |
+| --------------------------- | ------ | -------------------------- |
+| `/zanzibar/has-role`        | POST   | Check single role          |
+| `/zanzibar/has-permission`  | POST   | Check single permission    |
+| `/zanzibar/has-permissions` | POST   | Check multiple permissions |
 
 ---
 
