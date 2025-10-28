@@ -1,234 +1,367 @@
 # Better Auth Zanzibar Plugin
 
-A small, framework-agnostic Zanzibar-style authorization helper designed to plug into Better Auth.
+A framework-agnostic Zanzibar-style authorization plugin for Better Auth that enables relationship-based access control (ReBAC).
 
-This plugin introduces a Relationship-Based Access Control (ReBAC) model inspired by Google Zanzibar. Unlike plain RBAC, ReBAC makes authorization dynamic and context-aware by evaluating relationships between entities (e.g., a user can edit a file because they are an editor on its project or a collaborator on its folder).
+---
 
-- Purpose: complement existing role-based setups with fine-grained, relationship-driven permissions.
-- What it builds on: Better Auth’s plugin system (server + client) while letting you keep your own data layer (ORM/SQL/HTTP).
-- Problems it solves:
-  - Resource-level, relationship-based checks across hierarchies (project → folder → file)
-  - Delegation and sharing (grant access to specific users/groups)
-  - Declarative policies instead of ad-hoc permission code
-  - Composable checks that traverse relationships (graph-style)
+## Table of Contents
 
-## Install
+1. [Overview](#overview)
+2. [Installation](#installation)
+3. [Core Concepts](#core-concepts)
+4. [Quick Start](#quick-start)
+5. [Configuration](#configuration)
+6. [Usage Patterns](#usage-patterns)
+7. [API Reference](#api-reference)
+
+---
+
+## Overview
+
+### What is ReBAC?
+
+**Relationship-Based Access Control (ReBAC)** makes authorization dynamic and context-aware by evaluating relationships between entities. Unlike plain RBAC (Role-Based Access Control), ReBAC allows you to express permissions like:
+
+- _"A user can edit a file because they are an editor on its project"_
+- _"A user can view a folder because they are a viewer on its parent project"_
+
+### Key Features
+
+- **Graph-based permissions** - Traverse relationships across resource hierarchies
+- **Composable policies** - Small, reusable role checks that combine into complex permissions
+- **Type-safe** - Full TypeScript inference for resources, roles, and actions
+- **Framework-agnostic** - Works with any ORM, database, or API
+- **Performance** - Optional caching for repeated authorization checks
+
+### Problems It Solves
+
+| Problem                    | Solution                                                            |
+| -------------------------- | ------------------------------------------------------------------- |
+| Resource-level permissions | Check permissions on specific instances (project-123, file-456)     |
+| Hierarchical permissions   | Inherit permissions from parent resources (project → folder → file) |
+| Permission delegation      | Grant access to specific users or groups dynamically                |
+| Scattered permission logic | Centralize authorization in declarative policies                    |
+
+---
+
+## Installation
+
+### Prerequisites
+
+- **Node.js**: 18 or higher
+- **Better Auth**: Any version
+
+### Install the Plugin
 
 ```bash
 npm install better-auth-zanzibar-plugin
 ```
 
-## Quick start
+### Install Peer Dependencies
+
+```bash
+npm install better-auth node-cache zod
+```
+
+---
+
+## Core Concepts
+
+### 1. Resources and Actions
+
+**Resources** are the entities in your system. **Actions** are operations that can be performed on them.
 
 ```ts
-import { createAccessControl } from "better-auth-zanzibar-plugin";
-import { ZanzibarPlugin } from "better-auth-zanzibar-plugin";
-
-// 1) Define resources and roles
 const resources = {
-  project: ["delete", "read", "edit", "share"],
-  folder: ["delete", "read", "edit", "share"],
-  file: ["delete", "read", "edit", "share"],
+  project: ["create", "read", "update", "delete", "share"],
+  folder: ["read", "update", "delete"],
+  file: ["read", "update", "delete"],
+} as const;
+```
+
+### 2. Roles
+
+**Roles** bundle multiple actions together for a resource.
+
+```ts
+{
+  name: "editor",
+  actions: ["read", "update"]  // Editors can read and update
+}
+```
+
+### 3. Role Conditions
+
+**Role conditions** are functions that determine if a user has a role on a specific resource.
+
+```ts
+owner: async (userId: string, resourceId: string) => {
+  const project = await db.projects.findUnique({
+    where: { id: resourceId },
+  });
+  return project?.ownerId === userId;
+};
+```
+
+### 4. Graph Traversal
+
+ReBAC treats resources as a **graph** where:
+
+- **Nodes** = Resource instances (project-123, folder-456)
+- **Edges** = Relationships (folder.projectId, file.folderId)
+- **Traversal** = Checking permissions by following relationships
+
+```
+Project (owner)
+  └─> Folder (inherits viewer from project)
+       └─> File (inherits viewer from folder)
+```
+
+---
+
+## Quick Start
+
+### Step 1: Define Resources and Roles
+
+Create `lib/auth/zanzibar.ts`:
+
+```ts
+import {
+  createAccessControl,
+  ZanzibarPlugin,
+} from "better-auth-zanzibar-plugin";
+
+// 1. Define resources and their actions
+const resources = {
+  project: ["create", "read", "update", "delete", "share"],
+  folder: ["read", "update", "delete", "share"],
+  file: ["read", "update", "delete"],
 } as const;
 
 const ac = createAccessControl(resources);
 
+// 2. Define roles for each resource
 const acRoles = ac.resourceRoles({
   project: [
-    { name: "owner", actions: ["delete", "read", "edit", "share"] },
-    { name: "editor", actions: ["read", "edit"] },
+    { name: "owner", actions: ["create", "read", "update", "delete", "share"] },
+    { name: "editor", actions: ["read", "update"] },
     { name: "viewer", actions: ["read"] },
   ],
   folder: [
-    { name: "owner", actions: ["delete", "read", "edit", "share"] },
+    { name: "owner", actions: ["read", "update", "delete", "share"] },
     { name: "viewer", actions: ["read"] },
-    { name: "sharer", actions: ["read", "share"] },
   ],
   file: [
-    { name: "owner", actions: ["delete", "read", "edit", "share"] },
+    { name: "owner", actions: ["read", "update", "delete"] },
     { name: "viewer", actions: ["read"] },
-    { name: "sharer", actions: ["read", "share"] },
   ],
 } as const);
+```
 
-// 2) Add role conditions
+### Step 2: Implement Role Conditions
+
+```ts
+// Your database helper functions
+async function getProjectById(projectId: string) {
+  return await db.projects.findUnique({ where: { id: projectId } });
+}
+
+async function getFolderById(folderId: string) {
+  return await db.folders.findUnique({
+    where: { id: folderId },
+    include: { project: true },
+  });
+}
+
+async function getFileById(fileId: string) {
+  return await db.files.findUnique({
+    where: { id: fileId },
+    include: { folder: { include: { project: true } } },
+  });
+}
+
+// 3. Define role conditions
 const policies = acRoles.roleConditions({
   project: {
-    owner: async (userId: string, resourceId: string) => {
-      return await isProjectOwner(userId, resourceId);
+    owner: async (userId, resourceId) => {
+      const project = await getProjectById(resourceId);
+      return project?.ownerId === userId;
     },
-    editor: async (userId: string, resourceId: string) => {
-      return await isProjectMember(userId, resourceId);
+    editor: async (userId, resourceId) => {
+      const member = await db.projectMembers.findFirst({
+        where: { userId, projectId: resourceId, role: "editor" },
+      });
+      return !!member;
     },
-    viewer: async (userId: string, resourceId: string) => {
-      return await canViewProject(userId, resourceId);
+    viewer: async (userId, resourceId) => {
+      const project = await getProjectById(resourceId);
+      return (
+        project?.isPublic ||
+        (await acRoles.hasRole("project", "editor", userId, resourceId))
+      );
     },
   },
   folder: {
-    owner: async (userId: string, resourceId: string) => {
+    owner: async (userId, resourceId) => {
       const folder = await getFolderById(resourceId);
-      if (folder?.projectId) {
-        return await acRoles.hasRole(
-          "project",
-          "owner",
-          userId,
-          folder.projectId
-        );
-      }
-      return false;
+      // Folder owner = Project owner
+      return folder?.projectId
+        ? await acRoles.hasRole("project", "owner", userId, folder.projectId)
+        : false;
     },
-    viewer: async (userId: string, resourceId: string) => {
+    viewer: async (userId, resourceId) => {
       const folder = await getFolderById(resourceId);
-      if (folder?.projectId) {
-        return await acRoles.hasRole(
-          "project",
-          "viewer",
-          userId,
-          folder.projectId
-        );
-      }
-      return false;
-    },
-    sharer: async (userId: string, resourceId: string) => {
-      const folder = await getFolderById(resourceId);
-      if (folder?.projectId) {
-        return await acRoles.hasRole(
-          "project",
-          "owner",
-          userId,
-          folder.projectId
-        );
-      }
-      return false;
+      // Can view folder if can view project
+      return folder?.projectId
+        ? await acRoles.hasRole("project", "viewer", userId, folder.projectId)
+        : false;
     },
   },
   file: {
-    owner: async (userId: string, resourceId: string) => {
+    owner: async (userId, resourceId) => {
       const file = await getFileById(resourceId);
-      if (file?.folderId) {
-        return await acRoles.hasRole("folder", "owner", userId, file.folderId);
-      }
-      return false;
+      // File owner = Folder owner
+      return file?.folderId
+        ? await acRoles.hasRole("folder", "owner", userId, file.folderId)
+        : false;
     },
-    viewer: async (userId: string, resourceId: string) => {
+    viewer: async (userId, resourceId) => {
       const file = await getFileById(resourceId);
-      if (file?.folderId) {
-        return await acRoles.hasRole("folder", "viewer", userId, file.folderId);
-      }
-      return false;
-    },
-    sharer: async (userId: string, resourceId: string) => {
-      const file = await getFileWithFolder(resourceId);
-      const projectId = file?.folder?.projectId ?? null;
-      if (projectId) {
-        return await acRoles.hasRole("project", "owner", userId, projectId);
-      }
-      return false;
+      // Can view file if can view folder
+      return file?.folderId
+        ? await acRoles.hasRole("folder", "viewer", userId, file.folderId)
+        : false;
     },
   },
 } as const);
 
-// 3) Create Better Auth plugin
+// 4. Export the plugin
 export const zanzibar = ZanzibarPlugin(policies);
+// Enable caching: export const zanzibar = ZanzibarPlugin(policies, true);
 ```
 
-### What to write inside role condition functions
+### Step 3: Add to Better Auth
 
-> The helper functions used in the code examples above (like `isProjectOwner`, `getFolderById`, etc.) are for illustration only.
-> Replace them with your actual database queries, ORM models, HTTP requests, or other application-specific logic as needed.
-> Role condition functions should implement your business rules for checking relationships or permissions—adapt these to fit your own data structures and infrastructure.
-
-### Why this behaves like a graph
-
-- **Nodes**: concrete resource instances (e.g., a specific `project`, `folder`, or `file`).
-- **Edges**: relationships between instances (e.g., `folder.projectId`, `file.folderId`).
-- **Traversal**: inside a role condition, calling `hasRole("A", role, userId, relatedId)` moves along an edge from one node to another and reuses the policy defined for that target node.
-- **Result**: complex, multi-hop permission logic emerges by composing small role checks, without hardcoding cross-resource permissions in one place.
-
-## Client usage (Better Auth client)
+In `lib/auth/auth.ts`:
 
 ```ts
+import { betterAuth } from "better-auth";
+import { zanzibar } from "./zanzibar";
+
+export const auth = betterAuth({
+  database: {
+    // Your database configuration
+  },
+  plugins: [
+    zanzibar,
+    // ... other plugins
+  ],
+});
+```
+
+### Step 4: Setup Client (Optional)
+
+```ts
+import { createAuthClient } from "better-auth/client";
 import { ZanzibarClientPlugin } from "better-auth-zanzibar-plugin";
 
-const authClient = betterAuthClient({ plugins: [ZanzibarClientPlugin] });
-
-// Check a SINGLE role (returns boolean)
-const isEditor = await authClient.zanzibar.hasRole(
-  "documents",
-  "editor",
-  userId,
-  "doc-1"
-);
-
-// Check MULTIPLE roles at once (returns object with detailed results)
-const roleResult = await authClient.zanzibar.hasRoles(
-  userId,
-  { project: ["owner", "editor"] },
-  "project-123"
-);
-console.log(roleResult.allowed); // true only if ALL roles granted
-console.log(roleResult.results); // { project: { owner: true, editor: false } }
-
-// Check a SINGLE permission (returns boolean)
-const canRead = await authClient.zanzibar.hasPermission(
-  userId,
-  "read",
-  "documents",
-  "doc-1"
-);
-
-// Check MULTIPLE permissions at once (returns object with detailed results)
-const permResult = await authClient.zanzibar.hasPermissions(
-  userId,
-  { project: ["create", "update"] },
-  "project-123"
-);
-console.log(permResult.allowed); // true only if ALL permissions granted
-console.log(permResult.results); // { project: { create: true, update: false } }
+export const authClient = createAuthClient({
+  baseURL: "http://localhost:3000",
+  plugins: [ZanzibarClientPlugin()],
+});
 ```
 
-## Server usage
+---
 
-### Option 1: Direct Function Imports
+## Configuration
+
+### Plugin Options
 
 ```ts
-import {
-  hasRole,
-  hasPermission,
-  hasNamedPermissions,
-} from "better-auth-zanzibar-plugin";
+ZanzibarPlugin(
+  policies, // Required: Authorization policies
+  cachingEnabled // Optional: Enable caching (default: false)
+);
+```
 
-// Check a SINGLE role (returns boolean)
-const isOwner = await hasRole("project", "owner", userId, "project-123");
+### Caching
 
-// Check a SINGLE permission (returns boolean)
-const canDelete = await hasPermission(userId, "delete", "documents", "doc-1");
+When enabled, authorization results are cached for **5 minutes** (300 seconds).
 
-// Check MULTIPLE permissions/roles with custom names (most flexible)
-const result = await hasNamedPermissions(userId, {
-  projectPermissions: {
+**Cache Keys Include:**
+
+- Resource type
+- Role name or action
+- User ID
+- Resource ID
+
+```ts
+// Development (no caching)
+export const zanzibar = ZanzibarPlugin(policies, false);
+
+// Production (with caching)
+export const zanzibar = ZanzibarPlugin(policies, true);
+```
+
+**Performance Impact:**
+
+- ✅ Faster repeated checks
+- ✅ Reduced database load
+- ⚠️ May show stale data for up to 5 minutes
+
+---
+
+## Usage Patterns
+
+### Client-Side Usage
+
+#### Check Single Role
+
+```ts
+// Check single role
+const isOwner = await authClient.zanzibar.hasRole(
+  "project", // resource type
+  "owner", // role name
+  userId, // user ID
+  "project-123" // resource ID
+);
+// Returns: boolean
+
+// Check single permission
+const canDelete = await authClient.zanzibar.hasPermission(
+  userId,
+  "delete", // action
+  "project", // resource type
+  "project-123" // resource ID
+);
+// Returns: boolean
+
+// Check multiple named permissions
+const namedPerms = await authClient.zanzibar.hasNamedPermissions(userId, {
+  project: {
     resourceType: "project",
     actions: ["create", "update", "delete"],
     resourceId: "project-123",
   },
-  folderRole: {
+  folderRead: {
     resourceType: "folder",
-    action: "edit",
+    action: "read",
     resourceId: "folder-456",
   },
 });
-console.log(result.projectPermissions.allowed); // false
-console.log(result.projectPermissions.results); // { create: true, update: true, delete: false }
-console.log(result.folderRole.allowed); // true
+// Returns: {
+//   project: { allowed: boolean, message: string, results: { [action]: boolean } },
+//   folderRead: { allowed: boolean, message: string }
+// }
 ```
 
-### Option 2: Better Auth API (Server Components)
+### Server-Side Usage
 
 ```ts
-import { auth } from "./auth"; // your Better Auth instance
-import { headers } from "next/headers"; // or your framework's headers
+import { auth } from "./auth";
+import { headers } from "next/headers";
 
-// Check a SINGLE role
+// Check single role
 const roleResult = await auth.api.hasRole({
   headers: await headers(),
   body: {
@@ -237,98 +370,67 @@ const roleResult = await auth.api.hasRole({
     resourceId: "project-123",
   },
 });
+
 console.log(roleResult.allowed); // boolean
 console.log(roleResult.message); // descriptive message
 
-// Check a SINGLE permission
+// Check single permission
 const permResult = await auth.api.hasPermission({
   headers: await headers(),
   body: {
     action: "delete",
-    resourceType: "documents",
-    resourceId: "doc-1",
-  },
-});
-console.log(permResult.allowed); // boolean
-console.log(permResult.message); // descriptive message
-```
-
-> **Note**: The Better Auth API automatically extracts the `userId` from the session via the `headers`. You don't need to pass it explicitly.
-
-### Option 3: Named Permission Checks (Most Flexible)
-
-Check multiple permissions across different resources with custom names:
-
-```ts
-import { hasNamedPermissions } from "better-auth-zanzibar-plugin";
-
-const result = await hasNamedPermissions(userId, {
-  project: {
     resourceType: "project",
-    actions: ["create", "update", "delete"],
     resourceId: "project-123",
   },
-  folderCreate: {
-    resourceType: "folder",
-    action: "create",
-    resourceId: "folder-456",
-  },
-  folderEdit: {
-    resourceType: "folder",
-    action: "edit",
-    resourceId: "folder-456",
-  },
 });
 
-console.log(result.project.allowed); // false
-console.log(result.project.results); // { create: true, update: true, delete: false }
-console.log(result.folderCreate.allowed); // true
-console.log(result.folderEdit.allowed); // true
-```
+console.log(permResult.allowed); // boolean
+console.log(permResult.message); // descriptive message
 
-Or with Better Auth API:
-
-```ts
-const result = await auth.api.hasNamedPermissions({
+// Named permission checks
+const namedResult = await auth.api.hasNamedPermissions({
   headers: await headers(),
   body: {
     checks: {
-      project: {
+      projectPerms: {
         resourceType: "project",
-        actions: ["create", "update", "delete"],
+        actions: ["create", "update"],
         resourceId: "project-123",
       },
-      folderCreate: {
+      folderPerms: {
         resourceType: "folder",
-        action: "create",
-        resourceId: "folder-456",
-      },
-      folderEdit: {
-        resourceType: "folder",
-        action: "edit",
+        action: "read",
         resourceId: "folder-456",
       },
     },
   },
 });
-
-console.log(result.project.allowed); // false
-console.log(result.folderCreate.allowed); // true
 ```
 
-## API Summary
+> **Note:** The Better Auth API automatically extracts `userId` from the session via headers.
 
-### Single Checks (return boolean)
+---
 
-- **`hasRole`**: Check if user has a specific role on a resource
-- **`hasPermission`**: Check if user has a specific permission on a resource
+## API Reference
 
-### Named Checks (most flexible - return detailed object per check)
+### Core Functions
 
-- **`hasNamedPermissions`**: Check multiple permissions/roles across different resources with custom names - returns `Record<string, { allowed, message, results? }>`
+| Function                                                  | Description                                  | Returns                                          |
+| --------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
+| `hasRole(resourceType, roleName, userId, resourceId)`     | Check if user has a specific role            | `Promise<boolean>`                               |
+| `hasPermission(userId, action, resourceType, resourceId)` | Check if user has a specific permission      | `Promise<{ allowed: boolean, message: string }>` |
+| `hasNamedPermissions(userId, checks)`                     | Check multiple permissions with custom names | `Promise<Record<string, CheckResult>>`           |
 
 ### Server Endpoints
 
-- `POST /zanzibar/has-role` - Check single role
-- `POST /zanzibar/has-permission` - Check single permission
-- `POST /zanzibar/has-named-permissions` - Check multiple named permissions across different resources
+| Endpoint                          | Method | Description                      |
+| --------------------------------- | ------ | -------------------------------- |
+| `/zanzibar/has-role`              | POST   | Check single role                |
+| `/zanzibar/has-permission`        | POST   | Check single permission          |
+| `/zanzibar/has-named-permissions` | POST   | Check multiple named permissions |
+
+---
+
+## License
+
+MIT
