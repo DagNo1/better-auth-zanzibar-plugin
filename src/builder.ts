@@ -4,7 +4,7 @@ import type {
   ResourcesShape,
 } from "./types";
 import type { Policies, ResourceRole } from "./types";
-import { checkRole as runtimeCheckRole } from "./check";
+import { hasRole as runtimeHasRole } from "./has";
 
 /**
  * Creates an access control builder for defining and checking permissions in a Zanzibar-based authorization system.
@@ -47,7 +47,7 @@ import { checkRole as runtimeCheckRole } from "./check";
  *   });
  *
  * // Check permissions at runtime
- * const canEdit = await accessControl.checkRole('documents', 'editor', userId, documentId);
+ * const canEdit = await accessControl.hasRole('documents', 'editor', userId, documentId);
  * ```
  *
  * @template TResources - Shape defining available resources and their actions
@@ -84,7 +84,7 @@ export function createAccessControl<TResources extends ResourcesShape>(
         name: string;
         actions: ReadonlyArray<TResources[K][number]>;
       }>;
-    },
+    }
   >(roles: TRoles) {
     // Runtime validation: resources and actions
     for (const [resource, roleList] of Object.entries(roles)) {
@@ -192,10 +192,10 @@ export function createAccessControl<TResources extends ResourcesShape>(
      * @example
      * ```typescript
      * // Check if user can edit a document
-     * const canEdit = await accessControl.checkRole('documents', 'editor', userId, documentId);
+     * const canEdit = await accessControl.hasRole('documents', 'editor', userId, documentId);
      *
      * // Check if user can manage a project
-     * const canManage = await accessControl.checkRole('projects', 'owner', userId, projectId);
+     * const canManage = await accessControl.hasRole('projects', 'owner', userId, projectId);
      * ```
      *
      * @template K - Resource type key (must exist in TResources)
@@ -207,9 +207,9 @@ export function createAccessControl<TResources extends ResourcesShape>(
      * @returns Promise resolving to true if user has the role, false otherwise
      * @throws Error if resource type or role name is not recognized
      */
-    async function checkRole<
+    async function hasRole<
       K extends keyof TResources & keyof RoleNameMap & string,
-      R extends RoleNameMap[K],
+      R extends RoleNameMap[K]
     >(
       resourceType: K,
       roleName: R,
@@ -224,10 +224,12 @@ export function createAccessControl<TResources extends ResourcesShape>(
       );
       if (!definedRoles.has(roleName)) {
         throw new Error(
-          `Unknown role '${String(roleName)}' for resource '${String(resourceType)}'`
+          `Unknown role '${String(roleName)}' for resource '${String(
+            resourceType
+          )}'`
         );
       }
-      return runtimeCheckRole(
+      return runtimeHasRole(
         resourceType as string,
         roleName as string,
         userId,
@@ -235,7 +237,7 @@ export function createAccessControl<TResources extends ResourcesShape>(
       );
     }
 
-    return { roleConditions, checkRole } as const;
+    return { roleConditions, hasRole } as const;
   }
 
   return { resourceRoles } as const;

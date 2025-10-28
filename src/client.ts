@@ -14,18 +14,34 @@ import type { ZanzibarPlugin } from "./server";
  *
  * const authClient = betterAuthClient({ plugins: [ZanzibarClientPlugin] });
  *
- * // Use the plugin via the zanzibar namespace
- * const canRead = await authClient.zanzibar.check(
+ * // Check a single role
+ * const isEditor = await authClient.zanzibar.hasRole(
+ *   "documents",
+ *   "editor",
+ *   "user-1",
+ *   "doc-1"
+ * );
+ *
+ * // Check multiple roles at once
+ * const roleResult = await authClient.zanzibar.hasRoles(
+ *   "user-1",
+ *   { project: ["owner", "editor"] },
+ *   "project-123"
+ * );
+ *
+ * // Check a single permission
+ * const canRead = await authClient.zanzibar.hasPermission(
  *   "user-1",
  *   "read",
  *   "documents",
  *   "doc-1"
  * );
- * const isEditor = await authClient.zanzibar.checkRole(
- *   "documents",
- *   "editor",
+ *
+ * // Check multiple permissions at once
+ * const permResult = await authClient.zanzibar.hasPermissions(
  *   "user-1",
- *   "doc-1"
+ *   { project: ["create", "update"] },
+ *   "project-123"
  * );
  * ```
  *

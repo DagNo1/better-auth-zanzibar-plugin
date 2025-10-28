@@ -55,16 +55,15 @@ export const ZanzibarPlugin = (
     id: pluginId,
     endpoints: {
       /**
-       * POST endpoint for checking authorization permissions.
+       * POST endpoint for checking a SINGLE permission.
        *
-       * This endpoint allows authenticated users to check if they can perform specific actions
-       * on resources. The endpoint validates the request, extracts user session information,
-       * and uses the policy engine to evaluate permissions.
+       * Use this endpoint to check if a user has permission to perform ONE specific action
+       * on a resource. For checking multiple permissions at once, use the `hasPermissions` endpoint.
        *
        * @example
        * ```typescript
-       * // Client-side usage with fetch
-       * const response = await fetch('/api/auth/zanzibar/check', {
+       * // Check a single permission
+       * const response = await fetch('/api/auth/zanzibar/has-permission', {
        *   method: 'POST',
        *   headers: { 'Content-Type': 'application/json' },
        *   body: JSON.stringify({
@@ -77,19 +76,6 @@ export const ZanzibarPlugin = (
        * const result = await response.json();
        * console.log(result.allowed); // true/false
        * console.log(result.message); // "Action 'write' allowed on documents"
-       * ```
-       *
-       * @example
-       * ```typescript
-       * // Using with the Zanzibar client plugin
-       * import { ZanzibarClientPlugin } from './zanzibar/client';
-       *
-       * const client = betterAuthClient({
-       *   plugins: [ZanzibarClientPlugin],
-       * });
-       *
-       * const auth = client.useZanzibarPlugin();
-       * const result = await auth.check(userId, 'read', 'documents', 'doc-123');
        * ```
        *
        * Request body schema:
@@ -109,8 +95,8 @@ export const ZanzibarPlugin = (
        * - `500`: "Zanzibar not initialized with policies" - Policy engine not ready
        * - `500`: "Internal server error" - Unexpected server error
        */
-      check: createAuthEndpoint(
-        "/zanzibar/check",
+      hasPermission: createAuthEndpoint(
+        "/zanzibar/has-permission",
         {
           method: "POST",
           use: [sessionMiddleware],
@@ -136,7 +122,7 @@ export const ZanzibarPlugin = (
               );
             }
 
-            const allowed = await policyEngineInstance.check(
+            const allowed = await policyEngineInstance.hasPermission(
               userId,
               action,
               resourceType,
@@ -146,7 +132,7 @@ export const ZanzibarPlugin = (
               ...allowed,
             });
           } catch (error) {
-            console.error("Zanzibar check error:", error);
+            console.error("Zanzibar hasPermission error:", error);
             return ctx.json(
               { allowed: false, message: "Internal server error" },
               { status: 500 }
@@ -155,8 +141,96 @@ export const ZanzibarPlugin = (
         }
       ),
       /**
-       * POST endpoint for checking whether the authenticated user has a specific role
-       * for a given resource instance.
+       * POST endpoint for checking MULTIPLE permissions at once.
+       *
+       * Use this endpoint to efficiently check multiple permissions in a single request.
+       * This is useful when you need to verify several permissions simultaneously.
+       * The endpoint returns `allowed: true` only if ALL permissions are granted.
+       *
+       * Note: This differs from `hasPermission` endpoint which checks only a single permission.
+       *
+       * @example
+       * ```typescript
+       * // Check multiple permissions across resource types
+       * const response = await fetch('/api/auth/zanzibar/has-permissions', {
+       *   method: 'POST',
+       *   headers: { 'Content-Type': 'application/json' },
+       *   body: JSON.stringify({
+       *     permissions: {
+       *       project: ['create', 'update', 'delete'],
+       *       folder: ['read', 'share']
+       *     },
+       *     resourceId: 'project-123'
+       *   })
+       * });
+       *
+       * const result = await response.json();
+       * console.log(result.allowed); // true only if ALL permissions granted
+       * console.log(result.results);
+       * // {
+       * //   project: { create: true, update: true, delete: false },
+       * //   folder: { read: true, share: true }
+       * // }
+       * ```
+       *
+       * Request body schema:
+       * - `permissions`: Record<string, string[]> - Object mapping resource types to arrays of actions
+       * - `resourceId`: string - The specific resource instance ID
+       *
+       * Response format:
+       * ```typescript
+       * {
+       *   allowed: boolean,     // true only if ALL permissions are granted
+       *   message: string,      // Human-readable explanation
+       *   results: Record<string, Record<string, boolean>>  // Detailed results per permission
+       * }
+       * ```
+       */
+      hasPermissions: createAuthEndpoint(
+        "/zanzibar/has-permissions",
+        {
+          method: "POST",
+          use: [sessionMiddleware],
+          body: z.object({
+            permissions: z.record(z.string(), z.array(z.string())),
+            resourceId: z.string(),
+          }),
+        },
+        async (ctx) => {
+          try {
+            const { permissions, resourceId } = ctx.body;
+            const userId = ctx.context.session?.user.id;
+
+            if (!policyEngineInstance) {
+              return ctx.json(
+                {
+                  allowed: false,
+                  message: "Zanzibar not initialized with policies",
+                },
+                { status: 500 }
+              );
+            }
+
+            const result = await policyEngineInstance.hasMultiplePermissions(
+              userId,
+              permissions as Record<string, string[]>,
+              resourceId
+            );
+            return ctx.json(result);
+          } catch (error) {
+            console.error("Zanzibar hasPermissions error:", error);
+            return ctx.json(
+              { allowed: false, message: "Internal server error" },
+              { status: 500 }
+            );
+          }
+        }
+      ),
+      /**
+       * POST endpoint for checking a SINGLE role.
+       *
+       * Use this endpoint to check if a user has ONE specific role on a resource.
+       * For checking multiple roles at once, use the `hasRoles` endpoint.
        *
        * Request body schema:
        * - `resourceType`: string - The type of resource (e.g., 'documents', 'projects')
@@ -172,8 +246,8 @@ export const ZanzibarPlugin = (
        * - `500`: "Zanzibar not initialized with policies" - Policy engine not ready
        * - `500`: "Internal server error" - Unexpected server error
        */
-      checkRole: createAuthEndpoint(
-        "/zanzibar/check-role",
+      hasRole: createAuthEndpoint(
+        "/zanzibar/has-role",
         {
           method: "POST",
           use: [sessionMiddleware],
@@ -198,7 +272,7 @@ export const ZanzibarPlugin = (
               );
             }
 
-            const allowed = await policyEngineInstance.checkRole(
+            const allowed = await policyEngineInstance.hasRole(
               resourceType,
               roleName,
               userId,
@@ -206,7 +280,93 @@ export const ZanzibarPlugin = (
             );
             return ctx.json({ ...allowed });
           } catch (error) {
-            console.error("Zanzibar checkRole error:", error);
+            console.error("Zanzibar hasRole error:", error);
+            return ctx.json(
+              { allowed: false, message: "Internal server error" },
+              { status: 500 }
+            );
+          }
+        }
+      ),
+      /**
+       * POST endpoint for checking MULTIPLE roles at once.
+       *
+       * Use this endpoint to efficiently check multiple roles in a single request.
+       * This is useful when you need to verify several roles simultaneously.
+       * The endpoint returns `allowed: true` only if ALL roles are granted.
+       *
+       * Note: This differs from `hasRole` endpoint which checks only a single role.
+       *
+       * @example
+       * ```typescript
+       * // Check multiple roles across resource types
+       * const response = await fetch('/api/auth/zanzibar/has-roles', {
+       *   method: 'POST',
+       *   headers: { 'Content-Type': 'application/json' },
+       *   body: JSON.stringify({
+       *     roles: {
+       *       project: ['owner', 'editor'],
+       *       folder: ['viewer']
+       *     },
+       *     resourceId: 'project-123'
+       *   })
+       * });
+       *
+       * const result = await response.json();
+       * console.log(result.allowed); // true only if ALL roles granted
+       * console.log(result.results);
+       * // {
+       * //   project: { owner: true, editor: false },
+       * //   folder: { viewer: true }
+       * // }
+       * ```
+       *
+       * Request body schema:
+       * - `roles`: Record<string, string[]> - Object mapping resource types to arrays of role names
+       * - `resourceId`: string - The specific resource instance ID
+       *
+       * Response format:
+       * ```typescript
+       * {
+       *   allowed: boolean,     // true only if ALL roles are granted
+       *   message: string,      // Human-readable explanation
+       *   results: Record<string, Record<string, boolean>>  // Detailed results per role
+       * }
+       * ```
+       */
+      hasRoles: createAuthEndpoint(
+        "/zanzibar/has-roles",
+        {
+          method: "POST",
+          use: [sessionMiddleware],
+          body: z.object({
+            roles: z.record(z.string(), z.array(z.string())),
+            resourceId: z.string(),
+          }),
+        },
+        async (ctx) => {
+          try {
+            const { roles, resourceId } = ctx.body;
+            const userId = ctx.context.session?.user.id;
+
+            if (!policyEngineInstance) {
+              return ctx.json(
+                {
+                  allowed: false,
+                  message: "Zanzibar not initialized with policies",
+                },
+                { status: 500 }
+              );
+            }
+
+            const result = await policyEngineInstance.hasMultipleRoles(
+              userId,
+              roles as Record<string, string[]>,
+              resourceId
+            );
+            return ctx.json(result);
+          } catch (error) {
+            console.error("Zanzibar hasRoles error:", error);
             return ctx.json(
               { allowed: false, message: "Internal server error" },
               { status: 500 }
