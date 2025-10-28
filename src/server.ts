@@ -257,15 +257,7 @@ export const ZanzibarPlugin = (
 
           const result = await policyEngineInstance.hasPermissions(
             userId,
-            checks as Record<
-              string,
-              {
-                resourceType: string;
-                action?: string;
-                actions?: string[];
-                resourceId: string;
-              }
-            >
+            checks
           );
           return ctx.json(result);
         }
