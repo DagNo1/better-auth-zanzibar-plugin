@@ -22,13 +22,6 @@ import type { ZanzibarPlugin } from "./server";
  *   "doc-1"
  * );
  *
- * // Check multiple roles at once
- * const roleResult = await authClient.zanzibar.hasRoles(
- *   "user-1",
- *   { project: ["owner", "editor"] },
- *   "project-123"
- * );
- *
  * // Check a single permission
  * const canRead = await authClient.zanzibar.hasPermission(
  *   "user-1",
@@ -37,11 +30,21 @@ import type { ZanzibarPlugin } from "./server";
  *   "doc-1"
  * );
  *
- * // Check multiple permissions at once
- * const permResult = await authClient.zanzibar.hasPermissions(
+ * // Check multiple permissions with custom names
+ * const result = await authClient.zanzibar.hasNamedPermissions(
  *   "user-1",
- *   { project: ["create", "update"] },
- *   "project-123"
+ *   {
+ *     projectPermissions: {
+ *       resourceType: "project",
+ *       actions: ["create", "update"],
+ *       resourceId: "project-123"
+ *     },
+ *     folderAccess: {
+ *       resourceType: "folder",
+ *       action: "edit",
+ *       resourceId: "folder-456"
+ *     }
+ *   }
  * );
  * ```
  *

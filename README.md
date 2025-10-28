@@ -194,36 +194,32 @@ console.log(permResult.results); // { project: { create: true, update: false } }
 ```ts
 import {
   hasRole,
-  hasRoles,
   hasPermission,
-  hasPermissions,
+  hasNamedPermissions,
 } from "better-auth-zanzibar-plugin";
 
 // Check a SINGLE role (returns boolean)
 const isOwner = await hasRole("project", "owner", userId, "project-123");
 
-// Check MULTIPLE roles at once (returns object)
-const roleResult = await hasRoles(
-  userId,
-  { project: ["owner", "editor"], folder: ["viewer"] },
-  "project-123"
-);
-console.log(roleResult.allowed); // true only if ALL roles granted
-console.log(roleResult.results);
-// { project: { owner: true, editor: false }, folder: { viewer: true } }
-
 // Check a SINGLE permission (returns boolean)
 const canDelete = await hasPermission(userId, "delete", "documents", "doc-1");
 
-// Check MULTIPLE permissions at once (returns object)
-const permResult = await hasPermissions(
-  userId,
-  { project: ["create", "update", "delete"] },
-  "project-123"
-);
-console.log(permResult.allowed); // true only if ALL permissions granted
-console.log(permResult.results);
-// { project: { create: true, update: true, delete: false } }
+// Check MULTIPLE permissions/roles with custom names (most flexible)
+const result = await hasNamedPermissions(userId, {
+  projectPermissions: {
+    resourceType: "project",
+    actions: ["create", "update", "delete"],
+    resourceId: "project-123",
+  },
+  folderRole: {
+    resourceType: "folder",
+    action: "edit",
+    resourceId: "folder-456",
+  },
+});
+console.log(result.projectPermissions.allowed); // false
+console.log(result.projectPermissions.results); // { create: true, update: true, delete: false }
+console.log(result.folderRole.allowed); // true
 ```
 
 ### Option 2: Better Auth API (Server Components)
@@ -244,21 +240,6 @@ const roleResult = await auth.api.hasRole({
 console.log(roleResult.allowed); // boolean
 console.log(roleResult.message); // descriptive message
 
-// Check MULTIPLE roles at once
-const rolesResult = await auth.api.hasRoles({
-  headers: await headers(),
-  body: {
-    roles: {
-      project: ["owner", "editor"],
-      folder: ["viewer"],
-    },
-    resourceId: "project-123",
-  },
-});
-console.log(rolesResult.allowed); // true only if ALL roles granted
-console.log(rolesResult.results);
-// { project: { owner: true, editor: false }, folder: { viewer: true } }
-
 // Check a SINGLE permission
 const permResult = await auth.api.hasPermission({
   headers: await headers(),
@@ -270,23 +251,70 @@ const permResult = await auth.api.hasPermission({
 });
 console.log(permResult.allowed); // boolean
 console.log(permResult.message); // descriptive message
-
-// Check MULTIPLE permissions at once
-const permsResult = await auth.api.hasPermissions({
-  headers: await headers(),
-  body: {
-    permissions: {
-      project: ["create", "update", "delete"],
-    },
-    resourceId: "project-123",
-  },
-});
-console.log(permsResult.allowed); // true only if ALL permissions granted
-console.log(permsResult.results);
-// { project: { create: true, update: true, delete: false } }
 ```
 
 > **Note**: The Better Auth API automatically extracts the `userId` from the session via the `headers`. You don't need to pass it explicitly.
+
+### Option 3: Named Permission Checks (Most Flexible)
+
+Check multiple permissions across different resources with custom names:
+
+```ts
+import { hasNamedPermissions } from "better-auth-zanzibar-plugin";
+
+const result = await hasNamedPermissions(userId, {
+  project: {
+    resourceType: "project",
+    actions: ["create", "update", "delete"],
+    resourceId: "project-123",
+  },
+  folderCreate: {
+    resourceType: "folder",
+    action: "create",
+    resourceId: "folder-456",
+  },
+  folderEdit: {
+    resourceType: "folder",
+    action: "edit",
+    resourceId: "folder-456",
+  },
+});
+
+console.log(result.project.allowed); // false
+console.log(result.project.results); // { create: true, update: true, delete: false }
+console.log(result.folderCreate.allowed); // true
+console.log(result.folderEdit.allowed); // true
+```
+
+Or with Better Auth API:
+
+```ts
+const result = await auth.api.hasNamedPermissions({
+  headers: await headers(),
+  body: {
+    checks: {
+      project: {
+        resourceType: "project",
+        actions: ["create", "update", "delete"],
+        resourceId: "project-123",
+      },
+      folderCreate: {
+        resourceType: "folder",
+        action: "create",
+        resourceId: "folder-456",
+      },
+      folderEdit: {
+        resourceType: "folder",
+        action: "edit",
+        resourceId: "folder-456",
+      },
+    },
+  },
+});
+
+console.log(result.project.allowed); // false
+console.log(result.folderCreate.allowed); // true
+```
 
 ## API Summary
 
@@ -295,14 +323,12 @@ console.log(permsResult.results);
 - **`hasRole`**: Check if user has a specific role on a resource
 - **`hasPermission`**: Check if user has a specific permission on a resource
 
-### Multiple Checks (return detailed object)
+### Named Checks (most flexible - return detailed object per check)
 
-- **`hasRoles`**: Check multiple roles at once - returns `{ allowed, message, results }`
-- **`hasPermissions`**: Check multiple permissions at once - returns `{ allowed, message, results }`
+- **`hasNamedPermissions`**: Check multiple permissions/roles across different resources with custom names - returns `Record<string, { allowed, message, results? }>`
 
 ### Server Endpoints
 
 - `POST /zanzibar/has-role` - Check single role
-- `POST /zanzibar/has-roles` - Check multiple roles
 - `POST /zanzibar/has-permission` - Check single permission
-- `POST /zanzibar/has-permissions` - Check multiple permissions
+- `POST /zanzibar/has-named-permissions` - Check multiple named permissions across different resources

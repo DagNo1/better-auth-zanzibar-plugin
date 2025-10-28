@@ -246,166 +246,135 @@ export class PolicyEngine {
   }
 
   /**
-   * Checks whether a user has permissions for multiple actions on a resource.
+   * Checks multiple named permission checks, each targeting potentially different resources.
    *
-   * This method evaluates multiple permission checks in parallel and returns
-   * whether all requested permissions are granted.
+   * This method allows you to perform multiple permission checks with custom names,
+   * where each check can target different resource types, actions, and resource IDs.
    *
    * @example
    * ```typescript
-   * // Check if user has multiple permissions on a resource
-   * const result = await engine.hasMultiplePermissions(
-   *   userId,
-   *   { project: ['create', 'update'] },
-   *   'project-123'
-   * );
-   * if (result.allowed) {
-   *   console.log('User has all requested permissions');
-   * } else {
-   *   console.log('User is missing some permissions');
-   * }
+   * // Check various permissions with custom names
+   * const result = await engine.hasNamedPermissions(userId, {
+   *   projectEdit: {
+   *     resourceType: 'project',
+   *     actions: ['update', 'delete'],
+   *     resourceId: 'project-123'
+   *   },
+   *   folderCreate: {
+   *     resourceType: 'folder',
+   *     action: 'create',
+   *     resourceId: 'folder-456'
+   *   }
+   * });
+   * console.log(result.projectEdit.allowed); // boolean
+   * console.log(result.folderCreate.allowed); // boolean
    * ```
    *
    * @param userId - The ID of the user to check permissions for
-   * @param permissions - An object mapping resource types to arrays of actions
-   * @param resourceId - The ID of the specific resource instance
-   * @returns Promise resolving to an object with `allowed` boolean and descriptive `message`
+   * @param checks - Object with custom keys mapping to permission check definitions
+   * @returns Promise resolving to an object with results keyed by the custom names
    */
-  async hasMultiplePermissions(
+  async hasNamedPermissions(
     userId: string,
-    permissions: Record<string, string[]>,
-    resourceId: string
-  ): Promise<{
-    allowed: boolean;
-    message: string;
-    results?: Record<string, Record<string, boolean>>;
-  }> {
-    const results: Record<string, Record<string, boolean>> = {};
-    const checks: Promise<{
-      resourceType: string;
-      action: string;
-      allowed: boolean;
-    }>[] = [];
+    checks: Record<
+      string,
+      {
+        resourceType: string;
+        action?: string;
+        actions?: string[];
+        resourceId: string;
+      }
+    >
+  ): Promise<
+    Record<
+      string,
+      {
+        allowed: boolean;
+        message: string;
+        results?: Record<string, boolean>;
+      }
+    >
+  > {
+    const promises = Object.entries(checks).map(async ([key, check]) => {
+      const { resourceType, action, actions, resourceId } = check;
 
-    // Build all permission checks
-    for (const [resourceType, actions] of Object.entries(permissions)) {
-      results[resourceType] = {};
-      for (const action of actions) {
-        checks.push(
-          this.hasPermission(userId, action, resourceType, resourceId).then(
-            (result) => ({
-              resourceType,
-              action,
-              allowed: result.allowed,
+      // Determine if this is a single or multiple permission check
+      if (action) {
+        // Single permission check
+        const result = await this.hasPermission(
+          userId,
+          action,
+          resourceType,
+          resourceId
+        );
+        return {
+          key,
+          result: {
+            allowed: result.allowed,
+            message: result.message,
+          },
+        };
+      } else if (actions && actions.length > 0) {
+        // Multiple permissions check for this resource
+        const permissionResults: Record<string, boolean> = {};
+        const permChecks = actions.map((act) =>
+          this.hasPermission(userId, act, resourceType, resourceId).then(
+            (res) => ({
+              action: act,
+              allowed: res.allowed,
             })
           )
         );
+
+        const results = await Promise.all(permChecks);
+        let allAllowed = true;
+        const deniedActions: string[] = [];
+
+        for (const { action: act, allowed } of results) {
+          permissionResults[act] = allowed;
+          if (!allowed) {
+            allAllowed = false;
+            deniedActions.push(act);
+          }
+        }
+
+        return {
+          key,
+          result: {
+            allowed: allAllowed,
+            message: allAllowed
+              ? `All permissions granted for ${resourceType}`
+              : `Some permissions denied for ${resourceType}: ${deniedActions.join(
+                  ", "
+                )}`,
+            results: permissionResults,
+          },
+        };
+      } else {
+        return {
+          key,
+          result: {
+            allowed: false,
+            message: "No action or actions specified",
+          },
+        };
       }
+    });
+
+    const results = await Promise.all(promises);
+    const finalResult: Record<
+      string,
+      {
+        allowed: boolean;
+        message: string;
+        results?: Record<string, boolean>;
+      }
+    > = {};
+
+    for (const { key, result } of results) {
+      finalResult[key] = result;
     }
 
-    // Execute all checks in parallel
-    const results_list = await Promise.all(checks);
-
-    // Aggregate results
-    let allAllowed = true;
-    const deniedPermissions: string[] = [];
-
-    for (const { resourceType, action, allowed } of results_list) {
-      results[resourceType][action] = allowed;
-      if (!allowed) {
-        allAllowed = false;
-        deniedPermissions.push(`${resourceType}:${action}`);
-      }
-    }
-
-    return {
-      allowed: allAllowed,
-      message: allAllowed
-        ? "All permissions granted"
-        : `Some permissions denied: ${deniedPermissions.join(", ")}`,
-      results,
-    };
-  }
-
-  /**
-   * Checks whether a user has multiple roles on a resource.
-   *
-   * This method evaluates multiple role checks in parallel and returns
-   * whether all requested roles are granted.
-   *
-   * @example
-   * ```typescript
-   * // Check if user has multiple roles on a resource
-   * const result = await engine.hasMultipleRoles(
-   *   userId,
-   *   { project: ['owner', 'editor'] },
-   *   'project-123'
-   * );
-   * if (result.allowed) {
-   *   console.log('User has all requested roles');
-   * } else {
-   *   console.log('User is missing some roles');
-   * }
-   * ```
-   *
-   * @param userId - The ID of the user to check roles for
-   * @param roles - An object mapping resource types to arrays of role names
-   * @param resourceId - The ID of the specific resource instance
-   * @returns Promise resolving to an object with `allowed` boolean and descriptive `message`
-   */
-  async hasMultipleRoles(
-    userId: string,
-    roles: Record<string, string[]>,
-    resourceId: string
-  ): Promise<{
-    allowed: boolean;
-    message: string;
-    results?: Record<string, Record<string, boolean>>;
-  }> {
-    const results: Record<string, Record<string, boolean>> = {};
-    const checks: Promise<{
-      resourceType: string;
-      roleName: string;
-      allowed: boolean;
-    }>[] = [];
-
-    // Build all role checks
-    for (const [resourceType, roleNames] of Object.entries(roles)) {
-      results[resourceType] = {};
-      for (const roleName of roleNames) {
-        checks.push(
-          this.hasRole(resourceType, roleName, userId, resourceId).then(
-            (result) => ({
-              resourceType,
-              roleName,
-              allowed: result.allowed,
-            })
-          )
-        );
-      }
-    }
-
-    // Execute all checks in parallel
-    const results_list = await Promise.all(checks);
-
-    // Aggregate results
-    let allAllowed = true;
-    const deniedRoles: string[] = [];
-
-    for (const { resourceType, roleName, allowed } of results_list) {
-      results[resourceType][roleName] = allowed;
-      if (!allowed) {
-        allAllowed = false;
-        deniedRoles.push(`${resourceType}:${roleName}`);
-      }
-    }
-
-    return {
-      allowed: allAllowed,
-      message: allAllowed
-        ? "All roles granted"
-        : `Some roles denied: ${deniedRoles.join(", ")}`,
-      results,
-    };
+    return finalResult;
   }
 }

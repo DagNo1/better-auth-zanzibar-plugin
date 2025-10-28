@@ -40,43 +40,6 @@ export const hasRole = async (
 };
 
 /**
- * Checks whether a user has multiple roles on a resource.
- *
- * This function checks multiple roles in parallel and returns detailed results.
- * Returns `allowed: true` only if ALL roles are granted.
- *
- * @example
- * ```typescript
- * // Check if user has multiple roles
- * const result = await hasRoles(
- *   userId,
- *   { project: ['owner', 'editor'] },
- *   'project-123'
- * );
- * console.log(result.allowed); // true only if ALL roles granted
- * console.log(result.results); // { project: { owner: true, editor: false } }
- * ```
- *
- * @param userId - The ID of the user to check roles for
- * @param roles - An object mapping resource types to arrays of role names
- * @param resourceId - The ID of the specific resource instance
- * @returns Promise resolving to an object with allowed, message, and detailed results
- * @throws Error if the policy engine is not initialized
- */
-export const hasRoles = async (
-  userId: string,
-  roles: Record<string, string[]>,
-  resourceId: string
-): Promise<{
-  allowed: boolean;
-  message: string;
-  results?: Record<string, Record<string, boolean>>;
-}> => {
-  if (!policyEngineInstance) throw new Error("Policy engine not initialized");
-  return await policyEngineInstance.hasMultipleRoles(userId, roles, resourceId);
-};
-
-/**
  * Checks whether a user has a SINGLE permission on a resource.
  *
  * @example
@@ -113,42 +76,64 @@ export const hasPermission = async (
 };
 
 /**
- * Checks whether a user has MULTIPLE permissions on a resource.
+ * Checks multiple named permission checks, each targeting potentially different resources.
  *
- * This function checks multiple permissions in parallel and returns detailed results.
- * Returns `allowed: true` only if ALL permissions are granted.
+ * This function allows you to perform multiple permission checks with custom names,
+ * where each check can target different resource types, actions, and resource IDs.
  *
  * @example
  * ```typescript
- * // Check multiple permissions
- * const result = await hasPermissions(
- *   userId,
- *   { project: ['create', 'update'] },
- *   'project-123'
- * );
- * console.log(result.allowed); // true only if ALL permissions granted
- * console.log(result.results); // { project: { create: true, update: false } }
+ * // Check various permissions with custom names
+ * const result = await hasNamedPermissions(userId, {
+ *   project: {
+ *     resourceType: 'project',
+ *     actions: ['create', 'update', 'delete'],
+ *     resourceId: 'project-123'
+ *   },
+ *   folderCreate: {
+ *     resourceType: 'folder',
+ *     action: 'create',
+ *     resourceId: 'folder-456'
+ *   },
+ *   folderEdit: {
+ *     resourceType: 'folder',
+ *     action: 'edit',
+ *     resourceId: 'folder-456'
+ *   }
+ * });
+ *
+ * console.log(result.project.allowed); // false
+ * console.log(result.project.results); // { create: true, update: true, delete: false }
+ * console.log(result.folderCreate.allowed); // true
+ * console.log(result.folderEdit.allowed); // true
  * ```
  *
  * @param userId - The ID of the user to check permissions for
- * @param permissions - An object mapping resource types to arrays of actions
- * @param resourceId - The ID of the specific resource instance
- * @returns Promise resolving to an object with allowed, message, and detailed results
+ * @param checks - Object with custom keys mapping to permission check definitions
+ * @returns Promise resolving to an object with results keyed by the custom names
  * @throws Error if the policy engine is not initialized
  */
-export const hasPermissions = async (
+export const hasNamedPermissions = async (
   userId: string,
-  permissions: Record<string, string[]>,
-  resourceId: string
-): Promise<{
-  allowed: boolean;
-  message: string;
-  results?: Record<string, Record<string, boolean>>;
-}> => {
+  checks: Record<
+    string,
+    {
+      resourceType: string;
+      action?: string;
+      actions?: string[];
+      resourceId: string;
+    }
+  >
+): Promise<
+  Record<
+    string,
+    {
+      allowed: boolean;
+      message: string;
+      results?: Record<string, boolean>;
+    }
+  >
+> => {
   if (!policyEngineInstance) throw new Error("Policy engine not initialized");
-  return await policyEngineInstance.hasMultiplePermissions(
-    userId,
-    permissions,
-    resourceId
-  );
+  return await policyEngineInstance.hasNamedPermissions(userId, checks);
 };
