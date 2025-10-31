@@ -5,10 +5,9 @@
  * @param resourceId - The unique identifier of the resource
  * @returns Promise<boolean> - True if the relationship exists, false otherwise
  */
-export type RelationshipFunction = (
-  userId: string,
-  resourceId: string
-) => Promise<boolean>;
+export type RelationshipFunction =
+  | ((userId: string, resourceId: string) => Promise<boolean>)
+  | ((userId: string) => Promise<boolean>);
 
 /**
  * Defines a role within a resource type, including the actions the role can perform
@@ -76,7 +75,7 @@ export type RolesShape<TResources extends ResourcesShape> = {
  */
 export type ConditionsShape<
   TResources extends ResourcesShape,
-  TRoles extends RolesShape<TResources>,
+  TRoles extends RolesShape<TResources>
 > = {
   readonly [R in keyof TResources]?: Partial<
     Record<

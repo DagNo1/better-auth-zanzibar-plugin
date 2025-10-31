@@ -1,4 +1,4 @@
-import type { Policies } from "./types";
+import type { Policies, RelationshipFunction } from "./types";
 import NodeCache from "node-cache";
 
 /**
@@ -99,6 +99,26 @@ export class PolicyEngine {
     this.cachingEnabled = cachingEnabled;
   }
 
+  private async evaluateCondition(
+    condition: RelationshipFunction,
+    userId: string,
+    resourceId?: string
+  ): Promise<boolean> {
+    if (resourceId !== undefined) {
+      // If a resourceId is provided, prefer calling with it; extra args are ignored by 1-arg functions
+      return await (
+        condition as unknown as (u: string, r?: string) => Promise<boolean>
+      )(userId, resourceId);
+    }
+    // No resourceId: only global conditions should pass
+    if ((condition as unknown as { length: number }).length >= 2) {
+      return false;
+    }
+    return await (condition as unknown as (u: string) => Promise<boolean>)(
+      userId
+    );
+  }
+
   /**
    * Checks whether a user has a specific role for a given resource.
    *
@@ -126,9 +146,11 @@ export class PolicyEngine {
     resourceType: string,
     roleName: string,
     userId: string,
-    resourceId: string
+    resourceId?: string
   ): Promise<{ allowed: boolean; message: string }> {
-    const cacheKey = `hasRole:${resourceType}:${roleName}:${userId}:${resourceId}`;
+    const cacheKey = `hasRole:${resourceType}:${roleName}:${userId}:${
+      resourceId ?? "*"
+    }`;
 
     if (this.cachingEnabled) {
       const cached = this.cache.get(cacheKey);
@@ -155,7 +177,11 @@ export class PolicyEngine {
       if (this.cachingEnabled) this.cache.set(cacheKey, result);
       return result;
     }
-    const allowed = await role.condition(userId, resourceId);
+    const allowed = await this.evaluateCondition(
+      role.condition,
+      userId,
+      resourceId
+    );
     const result = {
       allowed,
       message: allowed
@@ -197,9 +223,11 @@ export class PolicyEngine {
     userId: string,
     action: string,
     resourceType: string,
-    resourceId: string
+    resourceId?: string
   ): Promise<{ allowed: boolean; message: string }> {
-    const cacheKey = `hasPermission:${userId}:${action}:${resourceType}:${resourceId}`;
+    const cacheKey = `hasPermission:${userId}:${action}:${resourceType}:${
+      resourceId ?? "*"
+    }`;
 
     if (this.cachingEnabled) {
       const cached = this.cache.get(cacheKey);
@@ -227,7 +255,11 @@ export class PolicyEngine {
     }
     for (const role of resource.roles) {
       if (!role.actions.includes(action)) continue;
-      const allowed = await role.condition(userId, resourceId);
+      const allowed = await this.evaluateCondition(
+        role.condition,
+        userId,
+        resourceId
+      );
       if (allowed) {
         const result = {
           allowed: true,
@@ -282,7 +314,7 @@ export class PolicyEngine {
         resourceType: string;
         action?: string;
         actions?: string[];
-        resourceId: string;
+        resourceId?: string;
       }
     >
   ): Promise<

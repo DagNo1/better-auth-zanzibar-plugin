@@ -293,7 +293,7 @@ When enabled, authorization results are cached for **5 minutes** (300 seconds).
 - Resource type
 - Role name or action
 - User ID
-- Resource ID
+- Resource ID (or `*` when `resourceId` is omitted for a global check)
 
 ```ts
 // Development (no caching)
@@ -318,18 +318,16 @@ export const zanzibar = ZanzibarPlugin(policies, true);
 #### Check Single Role
 
 ```ts
-// Check single role
+// Check single role (userId inferred from session)
 const isOwner = await authClient.zanzibar.hasRole(
   "project", // resource type
   "owner", // role name
-  userId, // user ID
   "project-123" // resource ID
 );
 // Returns: boolean
 
-// Check single permission
+// Check single permission (userId inferred from session)
 const canDelete = await authClient.zanzibar.hasPermission(
-  userId,
   "delete", // action
   "project", // resource type
   "project-123" // resource ID
@@ -337,7 +335,7 @@ const canDelete = await authClient.zanzibar.hasPermission(
 // Returns: boolean
 
 // Check multiple permissions
-const namedPerms = await authClient.zanzibar.hasPermissions(userId, {
+const namedPerms = await authClient.zanzibar.hasPermissions({
   project: {
     resourceType: "project",
     actions: ["create", "update", "delete"],
@@ -353,6 +351,23 @@ const namedPerms = await authClient.zanzibar.hasPermissions(userId, {
 //   project: { allowed: boolean, message: string, results: { [action]: boolean } },
 //   folderRead: { allowed: boolean, message: string }
 // }
+```
+
+#### Global (resource-less) conditions
+
+You can define role conditions that only depend on `userId` and call the checks without a `resourceId`. When `resourceId` is omitted, cache keys use `*` as the placeholder.
+
+```ts
+// Global condition example (role condition without resourceId)
+const policies = acRoles.roleConditions({
+  user: {
+    siteAdmin: async (userId) => isSiteAdmin(userId),
+  },
+});
+
+// Calls without resourceId (userId inferred from session)
+await authClient.zanzibar.hasRole("user", "siteAdmin");
+await authClient.zanzibar.hasPermission("manage", "user");
 ```
 
 ### Server-Side Usage
@@ -407,7 +422,10 @@ const namedResult = await auth.api.hasPermissions({
 });
 ```
 
-> **Note:** The Better Auth API automatically extracts `userId` from the session via headers.
+> **Notes:**
+>
+> - The Better Auth API automatically extracts `userId` from the session via headers.
+> - For global checks (no specific resource), server endpoints currently require a `resourceId` string. Use `"*"` as the placeholder to indicate a global check.
 
 ---
 
@@ -415,11 +433,11 @@ const namedResult = await auth.api.hasPermissions({
 
 ### Core Functions
 
-| Function                                                  | Description                                  | Returns                                          |
-| --------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------ |
-| `hasRole(resourceType, roleName, userId, resourceId)`     | Check if user has a specific role            | `Promise<boolean>`                               |
-| `hasPermission(userId, action, resourceType, resourceId)` | Check if user has a specific permission      | `Promise<{ allowed: boolean, message: string }>` |
-| `hasPermissions(userId, checks)`                          | Check multiple permissions with custom names | `Promise<Record<string, CheckResult>>`           |
+| Function                                                   | Description                                  | Returns                                |
+| ---------------------------------------------------------- | -------------------------------------------- | -------------------------------------- |
+| `hasRole(resourceType, roleName, userId, resourceId?)`     | Check if user has a specific role            | `Promise<boolean>`                     |
+| `hasPermission(userId, action, resourceType, resourceId?)` | Check if user has a specific permission      | `Promise<boolean>`                     |
+| `hasPermissions(userId, checks)`                           | Check multiple permissions with custom names | `Promise<Record<string, CheckResult>>` |
 
 ### Server Endpoints
 

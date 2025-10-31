@@ -26,7 +26,7 @@ export const hasRole = async (
   resourceType: string,
   roleName: string,
   userId: string,
-  resourceId: string
+  resourceId?: string
 ): Promise<boolean> => {
   if (!policyEngineInstance) throw new Error("Policy engine not initialized");
   return (
@@ -62,7 +62,7 @@ export const hasPermission = async (
   userId: string,
   action: string,
   resourceType: string,
-  resourceId: string
+  resourceId?: string
 ): Promise<boolean> => {
   if (!policyEngineInstance) throw new Error("Policy engine not initialized");
   return (
@@ -121,7 +121,7 @@ export const hasPermissions = async (
       resourceType: string;
       action?: string;
       actions?: string[];
-      resourceId: string;
+      resourceId?: string;
     }
   >
 ): Promise<
