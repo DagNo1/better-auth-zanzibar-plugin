@@ -52,7 +52,7 @@ import type { ZanzibarPlugin } from "./server";
  */
 export const ZanzibarClientPlugin = () => {
   return {
-    id: "zanzibar-plugin",
+    id: "zanzibar",
     $InferServerPlugin: {} as ReturnType<typeof ZanzibarPlugin>,
   } satisfies BetterAuthClientPlugin;
 };

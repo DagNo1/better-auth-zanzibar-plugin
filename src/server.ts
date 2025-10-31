@@ -45,7 +45,7 @@ export const ZanzibarPlugin = (
   policies: Policies,
   cachingEnabled: boolean = false
 ) => {
-  const pluginId = "zanzibar-plugin";
+  const pluginId = "zanzibar";
 
   if (!policyEngineInstance) {
     initializePolicyEngine(policies, cachingEnabled);
